@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pull Sheet Automation</title>
+<style>
+  :root{
+    --ink:#1a1a1a;
+    --line:#333;
+    --band:#c9dcf0;
+    --headbg:#eeeeee;
+    --muted:#666;
+    --paper:#fff;
+    --bg:#f4f5f7;
+    --accent:#2f5c8a;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family: Arial, Helvetica, sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+  }
+  .app{
+    max-width:1000px;
+    margin:0 auto;
+    padding:28px 24px 60px;
+  }
+  h1{
+    font-size:20px;
+    margin:0 0 4px;
+    letter-spacing:.2px;
+  }
+  .sub{
+    color:var(--muted);
+    font-size:13px;
+    margin:0 0 22px;
+  }
+  .panel{
+    background:var(--paper);
+    border:1px solid #dcdfe4;
+    border-radius:8px;
+    padding:18px 20px;
+    margin-bottom:22px;
+  }
+  .row{
+    display:flex;
+    gap:16px;
+    flex-wrap:wrap;
+    margin-bottom:14px;
+  }
+  .field{
+    flex:1;
+    min-width:160px;
+  }
+  label{
+    display:block;
+    font-size:12px;
+    font-weight:bold;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+    color:var(--muted);
+    margin-bottom:6px;
+  }
+  input[type=text]{
+    width:100%;
+    padding:8px 10px;
+    border:1px solid #c8ccd2;
+    border-radius:5px;
+    font-size:14px;
+    font-family:inherit;
+  }
+  textarea{
+    width:100%;
+    min-height:220px;
+    padding:10px;
+    border:1px solid #c8ccd2;
+    border-radius:5px;
+    font-family: "Courier New", monospace;
+    font-size:12.5px;
+    resize:vertical;
+    white-space:pre;
+  }
+  .hint{
+    font-size:12px;
+    color:var(--muted);
+    margin-top:6px;
+  }
+  .actions{
+    display:flex;
+    gap:10px;
+    align-items:center;
+    flex-wrap:wrap;
+  }
+  button{
+    font-family:inherit;
+    font-size:14px;
+    font-weight:bold;
+    padding:10px 18px;
+    border-radius:6px;
+    border:1px solid var(--accent);
+    background:var(--accent);
+    color:#fff;
+    cursor:pointer;
+  }
+  button.secondary{
+    background:#fff;
+    color:var(--accent);
+  }
+  button:hover{
+    opacity:.9;
+  }
+  #status{
+    font-size:13px;
+    color:var(--muted);
+  }
+  #status.err{ color:#b3261e; font-weight:bold; }
+  #status.ok{ color:#1a7a3d; font-weight:bold; }
+
+  .preview-label{
+    font-size:12px;
+    font-weight:bold;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+    color:var(--muted);
+    margin:0 0 10px;
+  }
+  #preview{
+    display:flex;
+    flex-direction:column;
+    gap:22px;
+    align-items:center;
+  }
+
+  /* ---- individual sheet ---- */
+  .sheet{
+    background:var(--paper);
+    width:100%;
+    max-width:940px;
+    aspect-ratio:11/8.5;
+    padding:26px 30px;
+    border:1px solid #ccc;
+    box-shadow:0 1px 4px rgba(0,0,0,.08);
+    font-family: Arial, Helvetica, sans-serif;
+  }
+  .band{
+    background:var(--band);
+    padding:6px 10px;
+    font-size:15px;
+    font-weight:bold;
+    margin-bottom:2px;
+  }
+  .band span{ font-weight:normal; }
+  .printweek{
+    font-size:12px;
+    margin:0 0 12px;
+  }
+  .printweek b{ font-weight:bold; }
+  table.grid{
+    width:100%;
+    border-collapse:collapse;
+    table-layout:fixed;
+    font-size:12.5px;
+    margin-bottom:22px;
+  }
+  table.grid th, table.grid td{
+    border:1px solid var(--line);
+    padding:5px 3px;
+    text-align:center;
+  }
+  table.grid th{
+    background:var(--headbg);
+    font-weight:bold;
+    font-size:11.5px;
+    white-space:nowrap;
+    overflow:hidden;
+  }
+  table.grid td.tech{
+    text-align:left;
+    padding:6px 10px;
+    line-height:1.4;
+  }
+  table.grid td.blank{ height:20px; }
+  .sortbox{
+    width:260px;
+    border-collapse:collapse;
+    font-size:12px;
+  }
+  .sortbox td{
+    border:1px solid var(--line);
+    padding:5px 8px;
+  }
+  .sortbox td.label{
+    font-weight:bold;
+    width:90px;
+    background:#fafafa;
+  }
+  .po-tag{
+    display:none;
+  }
+
+  @media print{
+    body{ background:#fff; }
+    .panel, h1, .sub, .preview-label{ display:none !important; }
+    .app{ padding:0; max-width:none; }
+    #preview{ gap:0; }
+    .sheet{
+      box-shadow:none;
+      border:none;
+      max-width:none;
+      width:100%;
+      aspect-ratio:auto;
+      page-break-after:always;
+    }
+    .sheet:last-child{ page-break-after:auto; }
+    @page{ size: landscape; margin: 0.4in; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <h1>Pull Sheet Automation</h1>
+  <p class="sub">Paste in your PO rows from Excel or Google Sheets and get one print-ready pull sheet per PO.</p>
+
+  <div class="panel">
+    <div class="row">
+      <div class="field">
+        <label for="dropDate">Drop</label>
+        <input type="text" id="dropDate" placeholder="e.g. 6/25">
+      </div>
+      <div class="field">
+        <label for="printWeek">Print Week</label>
+        <input type="text" id="printWeek" placeholder="e.g. 6/25">
+      </div>
+    </div>
+
+    <label for="pasteArea">Paste PO rows here (tab-separated, copied straight from your sheet)</label>
+    <textarea id="pasteArea" placeholder="PO#	Tech Pack	COLOR	CUT	XS	S	M	L	XL	XXL	XXXL	TOTAL
+L382	WIF26_06_889_5 Indiana Hoosiers Retro Football_Black Tee	Black	Tee	0	18	24	42	36	24	0	144"></textarea>
+    <p class="hint">Blank rows between POs are fine — they'll be skipped automatically. A header row is optional; it's detected and ignored if present.</p>
+
+    <div class="actions" style="margin-top:14px;">
+      <button id="genBtn">Generate pull sheets</button>
+      <button id="printBtn" class="secondary">Print / save as PDF</button>
+      <button id="clearBtn" class="secondary">Clear</button>
+      <span id="status"></span>
+    </div>
+  </div>
+
+  <p class="preview-label" id="previewLabel" style="display:none;">Preview</p>
+  <div id="preview"></div>
+
+</div>
+
+<script>
+const pasteArea = document.getElementById('pasteArea');
+const genBtn = document.getElementById('genBtn');
+const printBtn = document.getElementById('printBtn');
+const statusEl = document.getElementById('status');
+const preview = document.getElementById('preview');
+const previewLabel = document.getElementById('previewLabel');
+
+function escapeHtml(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function setStatus(msg, cls){
+  statusEl.textContent = msg;
+  statusEl.className = cls || '';
+}
+
+function parseRows(raw){
+  const lines = raw.split(/\r?\n/);
+  const rows = [];
+  for(const line of lines){
+    if(!line.trim()) continue; // skip blank spacer lines
+    const cells = line.split('\t').map(c => c.trim());
+    // must have at least PO#, tech pack, color, cut, and 2+ numbers
+    if(cells.length < 6) continue;
+    const first = cells[0];
+    // skip an obvious header row
+    if(/^po#?$/i.test(first)) continue;
+    rows.push(cells);
+  }
+  return rows;
+}
+
+function buildSheetHTML(row, dropVal, printWeekVal){
+  const [po, tech, color, cut, ...rest] = row;
+  // last cell is TOTAL, everything before it in `rest` is size columns
+  const total = rest.length ? rest[rest.length - 1] : '';
+  const sizeVals = rest.slice(0, -1);
+
+  let sizeLabels;
+  if(sizeVals.length === 7){
+    sizeLabels = ['XS','S','M','L','XL','XXL','XXXL'];
+  } else if(sizeVals.length === 6){
+    sizeLabels = ['S','M','L','XL','XXL','XXXL'];
+  } else {
+    // fallback: generic numbered size columns
+    sizeLabels = sizeVals.map((_, i) => 'SZ' + (i+1));
+  }
+
+  const sizeColWidth = (100 - 7 - 32 - 8 - 7 - 6) / sizeLabels.length;
+  const sizeHeaders = sizeLabels.map(l => `<th style="width:${sizeColWidth}%;">${escapeHtml(l)}</th>`).join('');
+  const sizeCells = sizeVals.map(v => `<td>${escapeHtml(v)}</td>`).join('');
+  const blankSizeCells = sizeLabels.map(() => `<td class="blank"></td>`).join('');
+
+  return `
+  <div class="sheet">
+    <div class="po-tag">${escapeHtml(po)}</div>
+    <div class="band">Drop:&nbsp; <span>${escapeHtml(dropVal || '')}</span></div>
+    <div class="printweek"><b>Print Week:</b>&nbsp; ${escapeHtml(printWeekVal || '')}</div>
+    <table class="grid">
+      <thead>
+        <tr>
+          <th style="width:7%;">PO#</th>
+          <th style="width:32%;">Tech Pack</th>
+          <th style="width:8%;">COLOR</th>
+          <th style="width:7%;">CUT</th>
+          ${sizeHeaders}
+          <th style="width:6%;">TOTAL</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>${escapeHtml(po)}</td>
+          <td class="tech">${escapeHtml(tech)}</td>
+          <td>${escapeHtml(color)}</td>
+          <td>${escapeHtml(cut)}</td>
+          ${sizeCells}
+          <td><b>${escapeHtml(total)}</b></td>
+        </tr>
+        <tr>
+          <td class="blank"></td>
+          <td class="blank"></td>
+          <td class="blank"></td>
+          <td class="blank"></td>
+          ${blankSizeCells}
+          <td class="blank"></td>
+        </tr>
+      </tbody>
+    </table>
+    <table class="sortbox">
+      <tr><td class="label">Date Sorted:</td><td></td></tr>
+      <tr><td class="label">Sorted By:</td><td></td></tr>
+    </table>
+  </div>`;
+}
+
+const clearBtn = document.getElementById('clearBtn');
+
+clearBtn.addEventListener('click', () => {
+  pasteArea.value = '';
+  pasteArea.focus();
+  setStatus('');
+});
+
+genBtn.addEventListener('click', () => {
+  const drop = document.getElementById('dropDate').value.trim();
+  const printWeek = document.getElementById('printWeek').value.trim();
+  const rows = parseRows(pasteArea.value);
+
+  if(rows.length === 0){
+    setStatus('No PO rows found — check that the data is tab-separated.', 'err');
+    preview.innerHTML = '';
+    previewLabel.style.display = 'none';
+    return;
+  }
+
+  preview.innerHTML = rows.map(r => buildSheetHTML(r, drop, printWeek)).join('');
+  previewLabel.style.display = 'block';
+  setStatus(`Generated ${rows.length} pull sheet${rows.length === 1 ? '' : 's'}.`, 'ok');
+});
+
+printBtn.addEventListener('click', () => {
+  if(!preview.innerHTML.trim()){
+    setStatus('Generate the sheets first, then print.', 'err');
+    return;
+  }
+  window.print();
+});
+</script>
+</body>
+</html>
