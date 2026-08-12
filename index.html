@@ -286,6 +286,29 @@ function parseRows(raw){
   return rows;
 }
 
+function mergeDuplicateRows(rows){
+  const merged = new Map();
+  const order = [];
+  for(const row of rows){
+    const [po, tech, color, cut, ...rest] = row;
+    const key = [po, tech, color, cut].map(s => s.trim().toLowerCase()).join('|');
+    if(merged.has(key)){
+      const existing = merged.get(key);
+      const existingRest = existing.slice(4);
+      const summed = existingRest.map((v, i) => {
+        const a = parseFloat(v) || 0;
+        const b = parseFloat(rest[i]) || 0;
+        return String(a + b);
+      });
+      merged.set(key, [existing[0], existing[1], existing[2], existing[3], ...summed]);
+    } else {
+      merged.set(key, row.slice());
+      order.push(key);
+    }
+  }
+  return order.map(k => merged.get(k));
+}
+
 function buildSheetHTML(row, dropVal, printWeekVal){
   const [po, tech, color, cut, ...rest] = row;
   // last cell is TOTAL, everything before it in `rest` is size columns
@@ -360,7 +383,7 @@ clearBtn.addEventListener('click', () => {
 genBtn.addEventListener('click', () => {
   const drop = document.getElementById('dropDate').value.trim();
   const printWeek = document.getElementById('printWeek').value.trim();
-  const rows = parseRows(pasteArea.value);
+  let rows = parseRows(pasteArea.value);
 
   if(rows.length === 0){
     setStatus('No PO rows found — check that the data is tab-separated.', 'err');
@@ -369,9 +392,18 @@ genBtn.addEventListener('click', () => {
     return;
   }
 
+  const originalCount = rows.length;
+  rows = mergeDuplicateRows(rows);
+  const combinedCount = originalCount - rows.length;
+
   preview.innerHTML = rows.map(r => buildSheetHTML(r, drop, printWeek)).join('');
   previewLabel.style.display = 'block';
-  setStatus(`Generated ${rows.length} pull sheet${rows.length === 1 ? '' : 's'}.`, 'ok');
+
+  let msg = `Generated ${rows.length} pull sheet${rows.length === 1 ? '' : 's'}.`;
+  if(combinedCount > 0){
+    msg += ` (Combined ${combinedCount} duplicate line${combinedCount === 1 ? '' : 's'} into existing sheets.)`;
+  }
+  setStatus(msg, 'ok');
 });
 
 printBtn.addEventListener('click', () => {
